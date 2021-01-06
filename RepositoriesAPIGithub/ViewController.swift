@@ -8,9 +8,10 @@
 import UIKit
 import Alamofire
 import AlamofireImage
+import Kingfisher
 class ViewController: UIViewController,UISearchBarDelegate {
     var pageSearch = 1
-    
+    var lastSearchTxt = ""
     @IBOutlet weak var activityIndicator: UIActivityIndicatorView!
     @IBOutlet weak var searchRepos: UISearchBar!
     @IBOutlet weak var reposTableView: UITableView!
@@ -42,9 +43,11 @@ class ViewController: UIViewController,UISearchBarDelegate {
         }
         
     }
+
     
     func searchBar(_ searchBar: UISearchBar, textDidChange searchText: String) {
         print("")
+        let text = searchText
         if searchText.isEmpty {
             AF.request("https://api.github.com/repositories", method: .get, parameters: nil, encoding: URLEncoding.default, headers: nil, interceptor: nil).response { (responseData) in
                 print(responseData.data)
@@ -60,34 +63,19 @@ class ViewController: UIViewController,UISearchBarDelegate {
                 }
             }
         } else{
-            let queue = DispatchQueue(label: "search")
-            queue.asyncAfter(deadline: DispatchTime.now()+1) {
-                AF.request("https://api.github.com/search/repositories?q=\(searchText)&sort=stars&order=desc&page=\(self.pageSearch)", method: .get, parameters: nil, encoding: URLEncoding.default, headers: nil, interceptor: nil).response { (responseData) in
-                    print(responseData)
-                    print(searchText)
-                    
-                    guard let data = responseData.data else{return}
-                    do {
-                        print("data")
-                        let reposi = try JSONDecoder().decode(SearchRepo.self, from: data)
-                        if(reposi.items != nil){
-                        self.repos = reposi.items!
-                        self.recordArray = 15
-                        self.totalEnteries = self.repos.count
-                        DispatchQueue.main.async {
-                            self.reposTableView.reloadData()
-                        }
-                            
-                        }
-                        
-                    }catch{
-                        print("catch")
-                    }
-                }
+//            let queue = DispatchQueue(label: "search")
+//            queue.asyncAfter(deadline: DispatchTime.now()) {
+//                self.performSelector(onMainThread: <#T##Selector#>, with: <#T##Any?#>, waitUntilDone: <#T##Bool#>, modes: <#T##[String]?#>)
+//                self.request(url: searchText)
+//            }
+            if lastSearchTxt.isEmpty {
+                lastSearchTxt = searchText
             }
-          
+            NSObject.cancelPreviousPerformRequests(withTarget: self, selector: #selector(self.request), object: lastSearchTxt)
+            lastSearchTxt = searchText
+            perform(#selector(self.request), with: searchText, afterDelay: 0.5)
             
-        }
+            }
 //        AF.request("https://api.github.com/search/repositories?q=chat&sort=stars&order=desc&page=1").responseJSON { (response) in
 //            if let responseValue = response.value as! [String:Any]? {
 //                if let reposi = responseValue["items"] as? [[String:Any]] {
@@ -100,7 +88,33 @@ class ViewController: UIViewController,UISearchBarDelegate {
 //        }
     }
  
-
+    @objc private func request(url: String) {
+        AF.request("https://api.github.com/search/repositories?q=\(url)&sort=stars&order=desc&page=\(self.pageSearch)", method: .get, parameters: nil, encoding: URLEncoding.default, headers: nil, interceptor: nil).response { (responseData) in
+            print(url)
+            print(responseData)
+          
+            
+            guard let data = responseData.data else{return}
+            do {
+                print("data")
+                let reposi = try JSONDecoder().decode(SearchRepo.self, from: data)
+                if(reposi.items != nil){
+                self.repos = reposi.items!
+                self.recordArray = 15
+                self.totalEnteries = self.repos.count
+                DispatchQueue.main.async {
+                    self.reposTableView.reloadData()
+                }
+                    
+                }
+                
+            }catch{
+                print("catch")
+            }
+        }
+    }
+    
+    
 }
 extension ViewController:UITableViewDelegate,UITableViewDataSource{
     func tableView(_ tableView: UITableView, numberOfRowsInSection section: Int) -> Int {
@@ -110,18 +124,22 @@ extension ViewController:UITableViewDelegate,UITableViewDataSource{
     func tableView(_ tableView: UITableView, cellForRowAt indexPath: IndexPath) -> UITableViewCell {
         
         if let cell = tableView.dequeueReusableCell(withIdentifier: "cell", for: indexPath) as? RepositoriesTableViewCell{
+            let placeholder = UIImage(systemName: "person")
             cell.lblNameRepos.text = repos[indexPath.row].name
             cell.lblAuthor.text = repos[indexPath.row].owners?.login
-            if let imgURL = repos[indexPath.row].owners?.avatar!{
-                AF.request(imgURL).responseImage { (response) in
-                    if let img = response.value{
-                        DispatchQueue.main.async {
-                            cell.imgAuthor.image = img
-                        }
-                        
-                    }
-                }
-            }
+//            if let imgURL = repos[indexPath.row].owners?.avatar!{
+//                AF.request(imgURL).responseImage { (response) in
+//                    if let img = response.value{
+//                        DispatchQueue.main.async {
+//                            cell.imgAuthor.image = img
+//                        }
+//
+//                    }
+//                }
+//            }
+//cell.imgAuthor.kf.setImage(with: URL(string: (self.repos[indexPath.row].owners?.avatar)!))
+            cell.imgAuthor.kf.setImage(with: URL(string: (self.repos[indexPath.row].owners?.avatar)!), placeholder: placeholder , options: nil, progressBlock: nil, completionHandler: nil)
+            
             return cell
         }
         return UITableViewCell()
@@ -149,6 +167,7 @@ extension ViewController:UITableViewDelegate,UITableViewDataSource{
                 DispatchQueue.main.async {
                     
                     self.activityIndicator.startAnimating()
+                    self.activityIndicator.isHidden = false
                 }
             }
             else{
