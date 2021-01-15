@@ -28,6 +28,14 @@ class ViewController: UIViewController,UISearchBarDelegate {
         reposTableView.dataSource = self
         searchRepos.delegate = self
        
+        
+        var sumNumbers = {(x) in
+            print(x)
+        
+        }
+       sumNumbers(10)
+        
+        
         AF.request("https://api.github.com/repositories", method: .get, parameters: nil, encoding: URLEncoding.default, headers: nil, interceptor: nil).response { (responseData) in
             print(responseData.data)
             guard let data = responseData.data else{return}
